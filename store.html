@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Store Manager - Inventory Management System</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="wrapper">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">
+                    <i class="bi bi-box-seam"></i>
+                </div>
+                <div class="logo-text">
+                    <h4 class="mb-0">Inventory</h4>
+                    <small class="text-muted">Store Manager</small>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <h6 class="nav-section-title">Main Menu</h6>
+                    <ul class="nav-menu">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#dashboard" data-section="dashboard">
+                                <i class="bi bi-grid"></i>
+                                <span>Dashboard</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#products" data-section="products">
+                                <i class="bi bi-box-seam"></i>
+                                <span>Products</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#inventory" data-section="inventory">
+                                <i class="bi bi-file-text"></i>
+                                <span>Inventory</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#stock-movements" data-section="stock-movements">
+                                <i class="bi bi-arrow-left-right"></i>
+                                <span>Stock Movements</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#activity-log" data-section="activity-log">
+                                <i class="bi bi-clock-history"></i>
+                                <span>Activity Log</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <a href="#" class="sign-out-link">
+                    <i class="bi bi-box-arrow-right"></i>
+                    <span>Sign Out</span>
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Header -->
+            <div class="top-header">
+                <div class="header-content">
+                    <i class="bi bi-file-text me-2"></i>
+                    <span>Inventory Management System - Store Manager</span>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Dashboard Section -->
+                <section id="dashboard" class="content-section">
+                    <div class="dashboard-header mb-4">
+                        <h1 class="dashboard-title">Dashboard</h1>
+                        <p class="dashboard-subtitle">Welcome back! Here's an overview of your store inventory.</p>
+                    </div>
+
+                    <!-- Stats Cards -->
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <div class="stat-card-body">
+                                    <div class="stat-content">
+                                        <h6 class="stat-label">Total Products</h6>
+                                        <h2 class="stat-value" id="totalItems">0</h2>
+                                        <p class="stat-description">Products in catalog</p>
+                                    </div>
+                                    <div class="stat-icon stat-icon-blue">
+                                        <i class="bi bi-box-seam"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <div class="stat-card-body">
+                                    <div class="stat-content">
+                                        <h6 class="stat-label">Store Inventory</h6>
+                                        <h2 class="stat-value" id="totalInventory">0</h2>
+                                        <p class="stat-description">Total units in stock</p>
+                                    </div>
+                                    <div class="stat-icon stat-icon-green">
+                                        <i class="bi bi-graph-up"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <div class="stat-card-body">
+                                    <div class="stat-content">
+                                        <h6 class="stat-label">Pending Receipts</h6>
+                                        <h2 class="stat-value" id="pendingMovements">0</h2>
+                                        <p class="stat-description">Awaiting receipt</p>
+                                    </div>
+                                    <div class="stat-icon stat-icon-yellow">
+                                        <i class="bi bi-graph-up-arrow"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <div class="stat-card-body">
+                                    <div class="stat-content">
+                                        <h6 class="stat-label">Activity Logs</h6>
+                                        <h2 class="stat-value" id="activityLogs">0</h2>
+                                        <p class="stat-description">Your actions</p>
+                                    </div>
+                                    <div class="stat-icon stat-icon-green">
+                                        <i class="bi bi-graph-up"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Role Information Card -->
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="card role-info-card">
+                                <div class="card-body">
+                                    <h5 class="card-title mb-3">Role Information</h5>
+                                    <p class="card-subtitle text-muted mb-4">Your current role and permissions</p>
+                                    <div class="role-info-content">
+                                        <div class="role-info-item">
+                                            <span class="role-label">Role:</span>
+                                            <span class="role-badge">Store Manager</span>
+                                        </div>
+                                        <div class="role-info-item">
+                                            <span class="role-label">Email:</span>
+                                            <span class="role-value">store@inventory.com</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Products Section (View Only) -->
+                <section id="products" class="content-section d-none">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h2>Products</h2>
+                        </div>
+                    </div>
+
+                    <!-- Search and Filter -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" id="productSearchInput" placeholder="Search products..." oninput="filterProducts()">
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="productCategoryFilter" onchange="filterProducts()">
+                                <option value="">All Categories</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="productStatusFilter" onchange="filterProducts()">
+                                <option value="">All Status</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-secondary w-100" onclick="document.getElementById('productSearchInput').value=''; document.getElementById('productCategoryFilter').value=''; document.getElementById('productStatusFilter').value=''; filterProducts();">
+                                <i class="bi bi-x-circle me-1"></i>Clear
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Products Table -->
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Name</th>
+                                            <th>SKU</th>
+                                            <th>Category</th>
+                                            <th>Unit Price</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="productsTable">
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">No products found.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Inventory Section -->
+                <section id="inventory" class="content-section d-none">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h2>
+                                <i class="bi bi-boxes me-2"></i>Store Inventory
+                            </h2>
+                        </div>
+                    </div>
+
+                    <!-- Search and Filter -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" id="searchInput" placeholder="Search items...">
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="categoryFilter">
+                                <option value="">All Categories</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="statusFilter">
+                                <option value="">All Status</option>
+                                <option value="in-stock">In Stock</option>
+                                <option value="low-stock">Low Stock</option>
+                                <option value="out-of-stock">Out of Stock</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-secondary w-100" onclick="clearFilters()">
+                                <i class="bi bi-x-circle me-1"></i>Clear
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Inventory Table -->
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Product Name</th>
+                                            <th>Category</th>
+                                            <th>Quantity</th>
+                                            <th>Unit Price</th>
+                                            <th>Total Value</th>
+                                            <th>Status</th>
+                                            <th>Location</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="inventoryTable">
+                                        <tr>
+                                            <td colspan="8" class="text-center text-muted">No items found.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Stock Movements Section -->
+                <section id="stock-movements" class="content-section d-none">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h2>Stock Movements</h2>
+                        </div>
+                    </div>
+                    
+                    <!-- Filters -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <select class="form-select" id="movementStatusFilter" onchange="filterMovements()">
+                                <option value="">All Status</option>
+                                <option value="pending">Pending</option>
+                                <option value="approved">Approved</option>
+                                <option value="received">Received</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="movementFromFilter" onchange="filterMovements()">
+                                <option value="">All From Locations</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="movementToFilter" onchange="filterMovements()">
+                                <option value="">All To Locations</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-secondary w-100" onclick="document.getElementById('movementStatusFilter').value=''; document.getElementById('movementFromFilter').value=''; document.getElementById('movementToFilter').value=''; filterMovements();">
+                                <i class="bi bi-x-circle me-1"></i>Clear
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Date</th>
+                                            <th>From</th>
+                                            <th>To</th>
+                                            <th>Items</th>
+                                            <th>Status</th>
+                                            <th>Created By</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="movementsTable">
+                                        <tr>
+                                            <td colspan="8" class="text-center text-muted">No movements found.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Activity Log Section -->
+                <section id="activity-log" class="content-section d-none">
+                    <div class="section-header mb-4">
+                        <h2>Activity Log</h2>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Date & Time</th>
+                                            <th>Action</th>
+                                            <th>Description</th>
+                                            <th>User</th>
+                                            <th>View</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="activityLogTable">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">No activity recorded</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Auth JS -->
+    <script src="js/auth.js"></script>
+    <!-- Products JS -->
+    <script src="js/products.js"></script>
+    <!-- Inventory Manager JS -->
+    <script src="js/inventoryManager.js"></script>
+    <!-- Movements JS -->
+    <script src="js/movements.js"></script>
+    <!-- Activity Log JS -->
+    <script src="js/activityLog.js"></script>
+    <!-- Role Config JS -->
+    <script src="js/roleConfig.js"></script>
+    <!-- Store JS -->
+    <script src="js/store.js"></script>
+    <!-- Custom JS -->
+    <script src="js/app.js"></script>
+</body>
+</html>
