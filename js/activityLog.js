@@ -1,38 +1,34 @@
 // Activity Log
 
-function loadActivityLog() {
-    // Combine activities from movements and transactions
-    let allActivities = [];
-    
-    // Get activities from movements
-    movements.forEach(movement => {
-        if (movement.activities) {
-            movement.activities.forEach(activity => {
-                allActivities.push({
-                    ...activity,
-                    type: 'movement',
-                    movementId: movement.id
-                });
-            });
+async function loadActivityLog() {
+    try {
+        let allActivities = [];
+        
+        // Load activity logs from API
+        if (typeof API !== 'undefined') {
+            const logsData = await API.getActivityLogs(200);
+            const apiLogs = logsData.logs || [];
+            
+            // Transform API logs to match expected format
+            allActivities = apiLogs.map(log => ({
+                action: log.action,
+                description: log.description,
+                timestamp: log.created_at,
+                user: log.user_name || log.user_email || 'System',
+                type: log.entity_type || 'general',
+                entityId: log.entity_id,
+                movementId: log.entity_type === 'movement' ? log.entity_id : null
+            }));
         }
-    });
-    
-    // Get activities from transactions
-    transactions.forEach(transaction => {
-        allActivities.push({
-            action: transaction.type === 'in' ? 'Stock In' : 'Stock Out',
-            description: `${transaction.type === 'in' ? 'Added' : 'Removed'} ${transaction.quantity} units of ${transaction.itemName}`,
-            timestamp: transaction.date,
-            user: 'System',
-            type: 'transaction',
-            transactionId: transaction.id
-        });
-    });
-    
-    // Sort by timestamp (newest first)
-    allActivities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    
-    renderActivityLog(allActivities);
+        
+        // Sort by timestamp (newest first)
+        allActivities.sort((a, b) => new Date(b.timestamp || b.created_at) - new Date(a.timestamp || a.created_at));
+        
+        renderActivityLog(allActivities);
+    } catch (error) {
+        console.error('Error loading activity log:', error);
+        showNotification('Error loading activity log: ' + error.message, 'error');
+    }
 }
 
 function renderActivityLog(activities) {
@@ -50,7 +46,7 @@ function renderActivityLog(activities) {
         
         return `
             <tr>
-                <td>${formatDateTime(activity.timestamp)}</td>
+                <td>${formatDateTime(activity.timestamp || activity.created_at)}</td>
                 <td>
                     <span class="badge bg-${iconClass}">
                         <i class="bi ${icon} me-1"></i>${activity.action}

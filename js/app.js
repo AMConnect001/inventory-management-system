@@ -1,25 +1,12 @@
 // Inventory Stock Flow - Frontend JavaScript
 
-// Data Storage (using localStorage for now - can be replaced with API calls)
-let inventory = JSON.parse(localStorage.getItem('inventory')) || [];
-let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
-let products = JSON.parse(localStorage.getItem('products')) || [];
-let locations = JSON.parse(localStorage.getItem('locations')) || [
-    { id: 1, name: 'Main Warehouse', type: 'warehouse', role: 'warehouse_manager' },
-    { id: 2, name: 'Distributor A', type: 'distributor', role: 'distributor' },
-    { id: 3, name: 'Distributor B', type: 'distributor', role: 'distributor' },
-    { id: 4, name: 'Sales Agent 1', type: 'sales_agent', role: 'sales_agent' },
-    { id: 5, name: 'Sales Agent 2', type: 'sales_agent', role: 'sales_agent' },
-    { id: 6, name: 'Store A', type: 'store', role: 'store_manager' },
-    { id: 7, name: 'Store B', type: 'store', role: 'store_manager' }
-];
-let movements = JSON.parse(localStorage.getItem('movements')) || [];
-let users = JSON.parse(localStorage.getItem('users')) || [];
-
-// Save locations if empty
-if (locations.length > 0 && !localStorage.getItem('locations')) {
-    localStorage.setItem('locations', JSON.stringify(locations));
-}
+// Data Storage - Now loaded from API
+let inventory = [];
+let transactions = []; // Transactions are now tracked via activity logs
+let products = [];
+let locations = [];
+let movements = [];
+let users = [];
 
 // Location hierarchy mapping
 const LOCATION_HIERARCHY = {
@@ -39,7 +26,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
 });
 
-function initializeApp() {
+async function initializeApp() {
     // Set up navigation
     setupNavigation();
     
@@ -51,6 +38,9 @@ function initializeApp() {
     
     // Set up role-based UI
     setupRoleBasedUI();
+    
+    // Load all data from API first
+    await loadAllData();
     
     // Load initial data based on current section
     const currentSection = getCurrentSection();
@@ -65,6 +55,42 @@ function initializeApp() {
     // Start token refresh
     if (typeof startTokenRefresh === 'function') {
         startTokenRefresh();
+    }
+}
+
+// Load all data from API
+async function loadAllData() {
+    try {
+        // Load products
+        if (typeof API !== 'undefined') {
+            const productsData = await API.getProducts();
+            products = productsData.products || [];
+            
+            // Load locations
+            const locationsData = await API.getLocations();
+            locations = locationsData.locations || [];
+            
+            // Load inventory
+            const inventoryData = await API.getInventory();
+            inventory = inventoryData.inventory || [];
+            
+            // Load movements
+            const movementsData = await API.getMovements();
+            movements = movementsData.movements || [];
+            
+            // Load users (admin only)
+            if (typeof Auth !== 'undefined' && Auth.isAdmin()) {
+                try {
+                    const usersData = await API.getUsers();
+                    users = usersData.users || [];
+                } catch (error) {
+                    console.warn('Could not load users:', error);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error loading data:', error);
+        showNotification('Error loading data. Please refresh the page.', 'error');
     }
 }
 
@@ -330,6 +356,13 @@ function setupEventListeners() {
 function loadDashboard() {
     updateDashboardStats();
     loadRecentTransactions();
+    // Load new dashboard features
+    updateCurrentDateTime();
+    updateUserProfile();
+    loadHighestQuantityProducts();
+    loadLatestMovements();
+    loadRecentlyAddedProducts();
+    loadDailyMovements();
     // Also update reports data for dashboard
     if (typeof loadReports === 'function') {
         loadReports();
@@ -411,18 +444,31 @@ function loadRecentTransactions() {
 }
 
 // Inventory Functions
-function loadInventory() {
-    updateCategoryFilter();
-    
-    // Filter inventory by user's location if applicable
-    const userLocation = typeof getUserLocation === 'function' ? getUserLocation() : null;
-    let displayInventory = inventory;
-    
-    if (userLocation) {
-        displayInventory = inventory.filter(inv => inv.locationId === userLocation.id);
+async function loadInventory() {
+    try {
+        // Reload inventory from API
+        if (typeof API !== 'undefined') {
+            const inventoryData = await API.getInventory();
+            inventory = inventoryData.inventory || [];
+        }
+        
+        updateCategoryFilter();
+        
+        // Filter inventory by user's location if applicable
+        const userLocation = typeof getUserLocation === 'function' ? getUserLocation() : null;
+        let displayInventory = inventory;
+        
+        if (userLocation) {
+            displayInventory = inventory.filter(inv => 
+                (inv.locationId === userLocation.id || inv.location_id === userLocation.id)
+            );
+        }
+        
+        renderInventoryTable(displayInventory);
+    } catch (error) {
+        console.error('Error loading inventory:', error);
+        showNotification('Error loading inventory: ' + error.message, 'error');
     }
-    
-    renderInventoryTable(displayInventory);
 }
 
 function updateCategoryFilter() {
@@ -471,24 +517,28 @@ function renderInventoryTable(items) {
                           status === 'low-stock' ? 'status-low-stock' : 'status-out-of-stock';
         const statusText = status === 'in-stock' ? 'In Stock' : 
                           status === 'low-stock' ? 'Low Stock' : 'Out of Stock';
-        const totalValue = ((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2);
+        const quantity = item.quantity || 0;
+        const unitPrice = item.unitPrice || item.unit_price || 0;
+        const totalValue = (quantity * unitPrice).toFixed(2);
         
         // Get product name (from productId if available, otherwise use item.name)
-        const product = item.productId ? products.find(p => p.id === item.productId) : null;
-        const productName = product ? product.name : (item.productName || item.name || 'Unknown');
-        const locationName = item.locationId ? getLocationName(item.locationId) : 'Unknown';
+        const productId = item.productId || item.product_id;
+        const product = productId ? products.find(p => p.id === productId) : null;
+        const productName = product ? product.name : (item.product_name || item.productName || item.name || 'Unknown');
+        const locationId = item.locationId || item.location_id;
+        const locationName = locationId ? getLocationName(locationId) : (item.location_name || 'Unknown');
         
         return `
             <tr>
                 <td>#${item.id}</td>
                 <td><strong>${productName}</strong></td>
                 <td>${item.category || product?.category || '-'}</td>
-                <td>${item.quantity || 0}</td>
-                <td>$${(item.unitPrice || 0).toFixed(2)}</td>
+                <td>${quantity}</td>
+                <td>$${unitPrice.toFixed(2)}</td>
                 <td>$${totalValue}</td>
                 <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                 <td>
-                    ${item.locationId ? `<small class="text-muted">${locationName}</small>` : ''}
+                    ${locationId ? `<small class="text-muted">${locationName}</small>` : ''}
                 </td>
             </tr>
         `;
@@ -496,6 +546,7 @@ function renderInventoryTable(items) {
 }
 
 function getLocationName(locationId) {
+    if (!locationId) return 'Unknown';
     const location = locations.find(l => l.id === locationId);
     return location ? location.name : 'Unknown';
 }
@@ -871,8 +922,10 @@ function formatDateTime(dateString) {
     });
 }
 
+// Inventory is now saved via API, no need for localStorage
 function saveInventory() {
-    localStorage.setItem('inventory', JSON.stringify(inventory));
+    // This function is kept for compatibility but does nothing
+    // Inventory is saved through API calls
 }
 
 function saveTransactions() {
@@ -946,5 +999,315 @@ function getNotificationIcon(type) {
         'info': 'bi-info-circle-fill'
     };
     return icons[type] || 'bi-info-circle-fill';
+}
+
+// Dashboard Enhancement Functions
+
+function updateCurrentDateTime() {
+    const now = new Date();
+    const options = { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric', 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+    };
+    const dateTimeStr = now.toLocaleDateString('en-US', options);
+    const dateTimeEl = document.getElementById('currentDateTime');
+    if (dateTimeEl) {
+        dateTimeEl.textContent = dateTimeStr;
+    }
+}
+
+function updateUserProfile() {
+    const user = Auth.getUser();
+    if (user) {
+        const nameEl = document.getElementById('userNameDisplay');
+        const emailEl = document.getElementById('userEmailDisplay');
+        if (nameEl) {
+            // Get role display name
+            const roleDisplayNames = {
+                'super_admin': 'Super Admin',
+                'warehouse_manager': 'Warehouse Manager',
+                'distributor': 'Distributor Manager',
+                'sales_agent': 'Sales Agent',
+                'store_manager': 'Store Manager'
+            };
+            const defaultName = roleDisplayNames[user.role] || 'User';
+            nameEl.textContent = user.name || defaultName;
+        }
+        if (emailEl) {
+            emailEl.textContent = user.email || 'user@inventory.com';
+        }
+    }
+}
+
+function loadHighestQuantityProducts() {
+    const tbody = document.getElementById('highestQuantityProductsTable');
+    if (!tbody) return;
+
+    try {
+        // Filter by user location if applicable
+        const userLocation = typeof getUserLocation === 'function' ? getUserLocation() : null;
+        let filteredInventory = inventory;
+        let filteredMovements = movements;
+        
+        if (userLocation) {
+            // Filter inventory by user's location
+            filteredInventory = inventory.filter(inv => {
+                const locationId = inv.location_id || inv.locationId;
+                return locationId === userLocation.id;
+            });
+            
+            // Filter movements relevant to user's location
+            filteredMovements = movements.filter(m => 
+                m.fromLocationId === userLocation.id || m.toLocationId === userLocation.id
+            );
+        }
+        
+        // Group inventory by product and calculate totals
+        const productStats = {};
+        
+        filteredInventory.forEach(item => {
+            const productId = item.product_id || item.productId;
+            const productName = item.product_name || item.productName || 'Unknown';
+            const quantity = item.quantity || 0;
+            
+            if (!productStats[productId]) {
+                productStats[productId] = {
+                    name: productName,
+                    totalQuantity: 0,
+                    movementCount: 0
+                };
+            }
+            productStats[productId].totalQuantity += quantity;
+        });
+
+        // Count movements per product
+        filteredMovements.forEach(movement => {
+            if (movement.items && Array.isArray(movement.items)) {
+                movement.items.forEach(item => {
+                    const productId = item.product_id || item.productId;
+                    if (productStats[productId]) {
+                        productStats[productId].movementCount++;
+                    }
+                });
+            }
+        });
+
+        // Convert to array and sort by quantity
+        const sortedProducts = Object.values(productStats)
+            .sort((a, b) => b.totalQuantity - a.totalQuantity)
+            .slice(0, 3);
+
+        if (sortedProducts.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No products found</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = sortedProducts.map((product, index) => `
+            <tr>
+                <td>${product.name}</td>
+                <td>${product.movementCount}</td>
+                <td>${product.totalQuantity}</td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading highest quantity products:', error);
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Error loading data</td></tr>';
+    }
+}
+
+function loadLatestMovements() {
+    const tbody = document.getElementById('latestMovementsTable');
+    if (!tbody) return;
+
+    try {
+        // Filter by user location if applicable
+        const userLocation = typeof getUserLocation === 'function' ? getUserLocation() : null;
+        let filteredMovements = movements;
+        
+        if (userLocation) {
+            // Filter movements relevant to user's location
+            filteredMovements = movements.filter(m => 
+                m.fromLocationId === userLocation.id || m.toLocationId === userLocation.id
+            );
+        }
+        
+        // Get latest movements with their items
+        const latestMovements = filteredMovements
+            .sort((a, b) => {
+                const dateA = new Date(a.created_at || a.createdAt || 0);
+                const dateB = new Date(b.created_at || b.createdAt || 0);
+                return dateB - dateA;
+            })
+            .slice(0, 3);
+
+        if (latestMovements.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No movements found</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = latestMovements.map((movement, index) => {
+            // Calculate total value from items
+            let totalValue = 0;
+            if (movement.items && Array.isArray(movement.items)) {
+                totalValue = movement.items.reduce((sum, item) => {
+                    return sum + ((item.quantity || 0) * (item.unit_price || item.unitPrice || 0));
+                }, 0);
+            }
+            
+            // Get first product name or use location names
+            let productName = 'Multiple Products';
+            if (movement.items && movement.items.length > 0) {
+                const firstItem = movement.items[0];
+                const productId = firstItem.product_id || firstItem.productId;
+                const product = products.find(p => p.id === productId);
+                if (product) {
+                    productName = product.name;
+                    if (movement.items.length > 1) {
+                        productName += ` +${movement.items.length - 1} more`;
+                    }
+                }
+            }
+            
+            const dateStr = movement.created_at || movement.createdAt;
+            const formattedDate = dateStr ? formatDate(dateStr) : 'N/A';
+            
+            return `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${productName}</td>
+                    <td>${formattedDate}</td>
+                    <td>$${totalValue.toFixed(2)}</td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Error loading latest movements:', error);
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading data</td></tr>';
+    }
+}
+
+function loadRecentlyAddedProducts() {
+    const container = document.getElementById('recentlyAddedProductsList');
+    if (!container) return;
+
+    try {
+        // Get recently added products (sorted by creation date)
+        const recentProducts = products
+            .sort((a, b) => {
+                const dateA = new Date(a.created_at || a.createdAt || 0);
+                const dateB = new Date(b.created_at || b.createdAt || 0);
+                return dateB - dateA;
+            })
+            .slice(0, 2);
+
+        if (recentProducts.length === 0) {
+            container.innerHTML = '<p class="text-muted mb-0">No products found</p>';
+            return;
+        }
+
+        container.innerHTML = recentProducts.map(product => {
+            const price = product.unit_price || product.unitPrice || 0;
+            const category = product.category || 'Uncategorized';
+            return `
+                <div class="mb-3 pb-3 border-bottom">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">${product.name}</h6>
+                            <p class="mb-0 text-muted small">Price: $${price.toFixed(2)}</p>
+                        </div>
+                        <span class="badge bg-secondary">${category}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Error loading recently added products:', error);
+        container.innerHTML = '<p class="text-danger mb-0">Error loading data</p>';
+    }
+}
+
+function loadDailyMovements() {
+    const tbody = document.getElementById('dailyMovementsTable');
+    if (!tbody) return;
+
+    try {
+        // Filter by user location if applicable
+        const userLocation = typeof getUserLocation === 'function' ? getUserLocation() : null;
+        let filteredMovements = movements;
+        
+        if (userLocation) {
+            // Filter movements relevant to user's location
+            filteredMovements = movements.filter(m => 
+                m.fromLocationId === userLocation.id || m.toLocationId === userLocation.id
+            );
+        }
+        
+        // Get all movements and flatten items
+        const movementItems = [];
+        
+        filteredMovements.forEach(movement => {
+            if (movement.items && Array.isArray(movement.items)) {
+                movement.items.forEach(item => {
+                    const productId = item.product_id || item.productId;
+                    const product = products.find(p => p.id === productId);
+                    const productName = product ? product.name : 'Unknown Product';
+                    const quantity = item.quantity || 0;
+                    const unitPrice = item.unit_price || item.unitPrice || 0;
+                    const total = quantity * unitPrice;
+                    const dateStr = movement.created_at || movement.createdAt;
+                    
+                    movementItems.push({
+                        productName,
+                        quantity,
+                        total,
+                        date: dateStr
+                    });
+                });
+            }
+        });
+
+        // Sort by date (most recent first) and limit to 8
+        const sortedItems = movementItems
+            .sort((a, b) => {
+                const dateA = new Date(a.date || 0);
+                const dateB = new Date(b.date || 0);
+                return dateB - dateA;
+            })
+            .slice(0, 8);
+
+        if (sortedItems.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No movements found</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = sortedItems.map((item, index) => {
+            const formattedDate = item.date ? formatDate(item.date) : 'N/A';
+            return `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${item.productName}</td>
+                    <td>${item.quantity}</td>
+                    <td>$${item.total.toFixed(2)}</td>
+                    <td>${formattedDate}</td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Error loading daily movements:', error);
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading data</td></tr>';
+    }
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
 }
 

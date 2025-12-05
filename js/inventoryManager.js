@@ -3,19 +3,20 @@
 // Get inventory for a specific location and product
 function getInventoryItem(locationId, productId) {
     return inventory.find(
-        inv => inv.locationId === locationId && inv.productId === productId
+        inv => (inv.locationId === locationId || inv.location_id === locationId) && 
+               (inv.productId === productId || inv.product_id === productId)
     );
 }
 
 // Get all inventory for a specific location
 function getLocationInventory(locationId) {
-    return inventory.filter(inv => inv.locationId === locationId);
+    return inventory.filter(inv => inv.locationId === locationId || inv.location_id === locationId);
 }
 
 // Get inventory quantity for a location and product
 function getInventoryQuantity(locationId, productId) {
     const item = getInventoryItem(locationId, productId);
-    return item ? item.quantity : 0;
+    return item ? (item.quantity || 0) : 0;
 }
 
 // Update inventory (add or subtract)
@@ -93,36 +94,37 @@ function validateMovementStock(fromLocationId, items) {
     };
 }
 
-// Add initial stock to warehouse (for warehouse manager)
-function addInitialStock(locationId, productId, quantity, unitPrice) {
+// Add initial stock to warehouse (for warehouse manager) - Now uses API
+async function addInitialStock(locationId, productId, quantity, unitPrice) {
     if (!locationId || !productId || quantity <= 0) {
         return { success: false, error: 'Invalid parameters' };
     }
     
-    // Check if location is warehouse
-    const location = locations.find(l => l.id === locationId);
-    if (!location || location.type !== 'warehouse') {
-        return { success: false, error: 'Initial stock can only be added to warehouses' };
-    }
-    
-    const result = updateInventory(locationId, productId, quantity, unitPrice);
-    
-    if (result) {
-        // Create transaction record
-        const product = products.find(p => p.id === productId);
-        addTransaction('in', productId, product ? product.name : 'Unknown', quantity, unitPrice, 'Initial stock entry');
+    try {
+        await API.addInitialStock({
+            location_id: locationId,
+            product_id: productId,
+            quantity: quantity,
+            unit_price: unitPrice
+        });
+        
+        // Reload inventory from API
+        await loadInventory();
         
         return { success: true };
+    } catch (error) {
+        console.error('Error adding initial stock:', error);
+        return { success: false, error: error.message || 'Failed to add stock' };
     }
-    
-    return { success: false, error: 'Failed to add stock' };
 }
 
 // Get total inventory value for a location
 function getLocationInventoryValue(locationId) {
     const locationInventory = getLocationInventory(locationId);
     return locationInventory.reduce((total, item) => {
-        return total + (item.quantity * (item.unitPrice || 0));
+        const quantity = item.quantity || 0;
+        const price = item.unitPrice || item.unit_price || 0;
+        return total + (quantity * price);
     }, 0);
 }
 
@@ -138,16 +140,19 @@ function getInventorySummary(locationId = null) {
     let totalValue = 0;
     
     filteredInventory.forEach(item => {
-        totalValue += item.quantity * (item.unitPrice || 0);
+        const quantity = item.quantity || 0;
+        const price = item.unitPrice || item.unit_price || 0;
+        totalValue += quantity * price;
         
-        if (item.quantity === 0) {
+        if (quantity === 0) {
             outOfStock++;
         } else {
             // Get product's low stock threshold
-            const product = products.find(p => p.id === item.productId);
-            const threshold = product?.lowStockThreshold || 10;
+            const productId = item.productId || item.product_id;
+            const product = products.find(p => p.id === productId);
+            const threshold = product?.low_stock_threshold || product?.lowStockThreshold || 10;
             
-            if (item.quantity <= threshold) {
+            if (quantity <= threshold) {
                 lowStock++;
             } else {
                 inStock++;

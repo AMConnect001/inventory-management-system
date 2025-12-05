@@ -1,11 +1,20 @@
 // Users Management (Admin Only)
 
-function loadUsers() {
+async function loadUsers() {
     if (typeof requireAdmin === 'function' && !requireAdmin()) {
         return;
     }
     
-    renderUsersTable(users);
+    try {
+        if (typeof API !== 'undefined') {
+            const usersData = await API.getUsers();
+            users = usersData.users || [];
+        }
+        renderUsersTable(users);
+    } catch (error) {
+        console.error('Error loading users:', error);
+        showNotification('Error loading users: ' + error.message, 'error');
+    }
 }
 
 function renderUsersTable(usersList) {
@@ -40,30 +49,37 @@ function renderUsersTable(usersList) {
     }).join('');
 }
 
-function addUser() {
+async function addUser() {
     const form = document.getElementById('addUserForm');
     if (!form.checkValidity()) {
         form.reportValidity();
         return;
     }
     
+    const password = document.getElementById('userPassword')?.value;
+    if (!password) {
+        alert('Password is required');
+        return;
+    }
+    
     const newUser = {
-        id: users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1,
         name: document.getElementById('userName').value.trim(),
         email: document.getElementById('userEmail').value.trim(),
+        password: password,
         role: document.getElementById('userRole').value,
-        status: 'active',
-        createdAt: new Date().toISOString()
+        location_id: document.getElementById('userLocationId')?.value ? parseInt(document.getElementById('userLocationId').value) : null
     };
     
-    users.push(newUser);
-    saveUsers();
-    
-    const modal = bootstrap.Modal.getInstance(document.getElementById('addUserModal'));
-    modal.hide();
-    
-    loadUsers();
-    showNotification('User added successfully!', 'success');
+    try {
+        await API.createUser(newUser);
+        const modal = bootstrap.Modal.getInstance(document.getElementById('addUserModal'));
+        modal.hide();
+        await loadUsers();
+        showNotification('User added successfully!', 'success');
+    } catch (error) {
+        console.error('Error adding user:', error);
+        showNotification('Error adding user: ' + error.message, 'error');
+    }
 }
 
 function editUser(id) {
@@ -80,7 +96,7 @@ function editUser(id) {
     modal.show();
 }
 
-function updateUser() {
+async function updateUser() {
     const form = document.getElementById('editUserForm');
     if (!form.checkValidity()) {
         form.reportValidity();
@@ -88,34 +104,42 @@ function updateUser() {
     }
     
     const id = parseInt(document.getElementById('editUserId').value);
-    const user = users.find(u => u.id === id);
-    if (!user) return;
     
-    user.name = document.getElementById('editUserName').value.trim();
-    user.email = document.getElementById('editUserEmail').value.trim();
-    user.role = document.getElementById('editUserRole').value;
-    user.status = document.getElementById('editUserStatus').value;
+    const updatedUser = {
+        name: document.getElementById('editUserName').value.trim(),
+        email: document.getElementById('editUserEmail').value.trim(),
+        role: document.getElementById('editUserRole').value,
+        location_id: document.getElementById('editUserLocationId')?.value ? parseInt(document.getElementById('editUserLocationId').value) : null
+    };
     
-    saveUsers();
+    // Add password if provided
+    const password = document.getElementById('editUserPassword')?.value;
+    if (password) {
+        updatedUser.password = password;
+    }
     
-    const modal = bootstrap.Modal.getInstance(document.getElementById('editUserModal'));
-    modal.hide();
-    
-    loadUsers();
-    showNotification('User updated successfully!', 'success');
+    try {
+        await API.updateUser(id, updatedUser);
+        const modal = bootstrap.Modal.getInstance(document.getElementById('editUserModal'));
+        modal.hide();
+        await loadUsers();
+        showNotification('User updated successfully!', 'success');
+    } catch (error) {
+        console.error('Error updating user:', error);
+        showNotification('Error updating user: ' + error.message, 'error');
+    }
 }
 
-function deleteUser(id) {
+async function deleteUser(id) {
     if (!confirm('Are you sure you want to delete this user?')) return;
     
-    users = users.filter(u => u.id !== id);
-    saveUsers();
-    
-    loadUsers();
-    showNotification('User deleted successfully!', 'success');
-}
-
-function saveUsers() {
-    localStorage.setItem('users', JSON.stringify(users));
+    try {
+        await API.deleteUser(id);
+        await loadUsers();
+        showNotification('User deleted successfully!', 'success');
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        showNotification('Error deleting user: ' + error.message, 'error');
+    }
 }
 

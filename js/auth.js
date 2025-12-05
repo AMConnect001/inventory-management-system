@@ -41,126 +41,29 @@ const Auth = {
         localStorage.removeItem(this.USER_KEY);
     },
     
-    // Login function
+    // Login function - Now uses real API
     async login(email, password) {
         try {
-            // Simulate API call - Replace with actual API endpoint
-            // const response = await fetch('/api/auth/login', {
-            //     method: 'POST',
-            //     headers: { 'Content-Type': 'application/json' },
-            //     body: JSON.stringify({ email, password })
-            // });
-            // const data = await response.json();
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
             
-            // Mock authentication for now
-            // Default admin login
-            if (email === 'admin@inventory.com' && password === 'admin123') {
-                const mockUser = {
-                    id: 1,
-                    email: 'admin@inventory.com',
-                    name: 'Super Admin',
-                    role: 'super_admin',
-                    permissions: ['all']
-                };
-                
-                const mockToken = 'mock_jwt_token_' + Date.now();
-                const mockRefreshToken = 'mock_refresh_token_' + Date.now();
-                
-                this.setAuth(mockToken, mockRefreshToken, mockUser);
-                
-                return {
-                    success: true,
-                    user: mockUser,
-                    token: mockToken
-                };
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Login failed');
             }
-            // Warehouse Manager login
-            else if (email === 'warehouse@inventory.com' && password === 'warehouse123') {
-                const mockUser = {
-                    id: 2,
-                    email: 'warehouse@inventory.com',
-                    name: 'Warehouse Manager',
-                    role: 'warehouse_manager',
-                    permissions: ['view_inventory', 'add_stock', 'create_movement']
-                };
-                
-                const mockToken = 'mock_jwt_token_' + Date.now();
-                const mockRefreshToken = 'mock_refresh_token_' + Date.now();
-                
-                this.setAuth(mockToken, mockRefreshToken, mockUser);
-                
-                return {
-                    success: true,
-                    user: mockUser,
-                    token: mockToken
-                };
-            }
-            // Distributor login
-            else if (email === 'distributor@inventory.com' && password === 'distributor123') {
-                const mockUser = {
-                    id: 3,
-                    email: 'distributor@inventory.com',
-                    name: 'Distributor',
-                    role: 'distributor',
-                    permissions: ['view_inventory', 'create_movement', 'approve_movement', 'receive_movement']
-                };
-                
-                const mockToken = 'mock_jwt_token_' + Date.now();
-                const mockRefreshToken = 'mock_refresh_token_' + Date.now();
-                
-                this.setAuth(mockToken, mockRefreshToken, mockUser);
-                
-                return {
-                    success: true,
-                    user: mockUser,
-                    token: mockToken
-                };
-            }
-            // Sales Agent login
-            else if (email === 'agent@inventory.com' && password === 'agent123') {
-                const mockUser = {
-                    id: 4,
-                    email: 'agent@inventory.com',
-                    name: 'Sales Agent',
-                    role: 'sales_agent',
-                    permissions: ['view_inventory', 'create_movement', 'approve_movement', 'receive_movement']
-                };
-                
-                const mockToken = 'mock_jwt_token_' + Date.now();
-                const mockRefreshToken = 'mock_refresh_token_' + Date.now();
-                
-                this.setAuth(mockToken, mockRefreshToken, mockUser);
-                
-                return {
-                    success: true,
-                    user: mockUser,
-                    token: mockToken
-                };
-            }
-            // Store Manager login
-            else if (email === 'store@inventory.com' && password === 'store123') {
-                const mockUser = {
-                    id: 5,
-                    email: 'store@inventory.com',
-                    name: 'Store Manager',
-                    role: 'store_manager',
-                    permissions: ['view_inventory', 'approve_movement', 'receive_movement']
-                };
-                
-                const mockToken = 'mock_jwt_token_' + Date.now();
-                const mockRefreshToken = 'mock_refresh_token_' + Date.now();
-                
-                this.setAuth(mockToken, mockRefreshToken, mockUser);
-                
-                return {
-                    success: true,
-                    user: mockUser,
-                    token: mockToken
-                };
-            }
-            else {
-                throw new Error('Invalid email or password');
-            }
+            
+            // Store authentication data
+            this.setAuth(data.token, data.refreshToken, data.user);
+            
+            return {
+                success: true,
+                user: data.user,
+                token: data.token
+            };
         } catch (error) {
             return {
                 success: false,
@@ -175,31 +78,29 @@ const Auth = {
         window.location.href = 'login.html';
     },
     
-    // Refresh token
+    // Refresh token - Get current user info to refresh session
     async refreshToken() {
         try {
-            const refreshToken = this.getRefreshToken();
-            if (!refreshToken) {
-                throw new Error('No refresh token');
+            const token = this.getToken();
+            if (!token) {
+                throw new Error('No token');
             }
             
-            // Simulate API call - Replace with actual API endpoint
-            // const response = await fetch('/api/auth/refresh', {
-            //     method: 'POST',
-            //     headers: { 'Content-Type': 'application/json' },
-            //     body: JSON.stringify({ refreshToken })
-            // });
-            // const data = await response.json();
+            // Use /api/auth/me to verify token is still valid
+            const response = await fetch('/api/auth/me', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             
-            // Mock refresh for now
-            const user = this.getUser();
-            if (user) {
-                const newToken = 'mock_jwt_token_' + Date.now();
-                localStorage.setItem(this.TOKEN_KEY, newToken);
-                return { success: true, token: newToken };
+            if (response.ok) {
+                const data = await response.json();
+                // Update user data in case it changed
+                if (data.user) {
+                    localStorage.setItem(this.USER_KEY, JSON.stringify(data.user));
+                }
+                return { success: true, token: token };
+            } else {
+                throw new Error('Token expired');
             }
-            
-            throw new Error('Refresh failed');
         } catch (error) {
             this.logout();
             return { success: false, error: error.message };

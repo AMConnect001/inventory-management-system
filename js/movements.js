@@ -1,23 +1,35 @@
 // Stock Movements Management
 
-function loadMovements() {
-    // Update location filters first
-    if (typeof updateLocationFilters === 'function') {
-        updateLocationFilters();
+async function loadMovements() {
+    try {
+        // Load movements from API
+        if (typeof API !== 'undefined') {
+            const movementsData = await API.getMovements();
+            movements = movementsData.movements || [];
+        }
+        
+        // Update location filters first
+        if (typeof updateLocationFilters === 'function') {
+            updateLocationFilters();
+        }
+        
+        // Filter movements by user location if applicable
+        const userLocation = getUserLocation();
+        let movementsToShow = movements;
+        
+        if (userLocation) {
+            movementsToShow = movements.filter(m => 
+                (m.fromLocationId === userLocation.id || m.from_location_id === userLocation.id) ||
+                (m.toLocationId === userLocation.id || m.to_location_id === userLocation.id)
+            );
+        }
+        
+        renderMovementsTable(movementsToShow);
+        updateMovementsStats();
+    } catch (error) {
+        console.error('Error loading movements:', error);
+        showNotification('Error loading movements: ' + error.message, 'error');
     }
-    
-    // Filter movements by user location if applicable
-    const userLocation = getUserLocation();
-    let movementsToShow = movements;
-    
-    if (userLocation) {
-        movementsToShow = movements.filter(m => 
-            m.fromLocationId === userLocation.id || m.toLocationId === userLocation.id
-        );
-    }
-    
-    renderMovementsTable(movementsToShow);
-    updateMovementsStats();
 }
 
 function renderMovementsTable(movementsList) {
@@ -51,12 +63,12 @@ function renderMovementsTable(movementsList) {
         return `
             <tr onclick="viewMovementDetail(${movement.id})" style="cursor: pointer;">
                 <td>#${movement.id}</td>
-                <td>${formatDateTime(movement.createdAt)}</td>
-                <td>${getLocationName(movement.fromLocationId)}</td>
-                <td>${getLocationName(movement.toLocationId)}</td>
+                <td>${formatDateTime(movement.created_at || movement.createdAt)}</td>
+                <td>${getLocationName(movement.from_location_id || movement.fromLocationId)}</td>
+                <td>${getLocationName(movement.to_location_id || movement.toLocationId)}</td>
                 <td>${movement.items?.length || 0} items</td>
                 <td><span class="badge bg-${statusClass}">${movement.status}</span></td>
-                <td>${movement.createdBy || '-'}</td>
+                <td>${movement.created_by_name || movement.createdBy || '-'}</td>
                 <td>
                     <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); viewMovementDetail(${movement.id})" title="View">
                         <i class="bi bi-eye"></i>
@@ -73,28 +85,64 @@ function getLocationName(locationId) {
     return location ? location.name : 'Unknown';
 }
 
-function viewMovementDetail(movementId) {
-    const movement = movements.find(m => m.id === movementId);
-    if (!movement) {
-        alert('Movement not found');
-        return;
+async function viewMovementDetail(movementId) {
+    try {
+        // Try to get from local array first, if not found, fetch from API
+        let movement = movements.find(m => m.id === movementId);
+        if (!movement && typeof API !== 'undefined') {
+            const data = await API.getMovement(movementId);
+            movement = data.movement;
+            // Update local array
+            const index = movements.findIndex(m => m.id === movementId);
+            if (index >= 0) {
+                movements[index] = movement;
+            } else {
+                movements.push(movement);
+            }
+        }
+        
+        if (!movement) {
+            alert('Movement not found');
+            return;
+        }
+        
+        // Store movement ID for detail view
+        sessionStorage.setItem('viewMovementId', movementId);
+        
+        // Show movement detail section
+        showMovementDetail();
+        
+        // Update URL hash
+        window.location.hash = 'movement-detail';
+    } catch (error) {
+        console.error('Error loading movement:', error);
+        alert('Error loading movement: ' + error.message);
     }
-    
-    // Store movement ID for detail view
-    sessionStorage.setItem('viewMovementId', movementId);
-    
-    // Show movement detail section
-    showMovementDetail();
-    
-    // Update URL hash
-    window.location.hash = 'movement-detail';
 }
 
-function showMovementDetail() {
+async function showMovementDetail() {
     const movementId = parseInt(sessionStorage.getItem('viewMovementId'));
     if (!movementId) return;
     
-    const movement = movements.find(m => m.id === movementId);
+    // Try to get from local array first, if not found, fetch from API
+    let movement = movements.find(m => m.id === movementId);
+    if (!movement && typeof API !== 'undefined') {
+        try {
+            const data = await API.getMovement(movementId);
+            movement = data.movement;
+            // Update local array
+            const index = movements.findIndex(m => m.id === movementId);
+            if (index >= 0) {
+                movements[index] = movement;
+            } else {
+                movements.push(movement);
+            }
+        } catch (error) {
+            console.error('Error loading movement:', error);
+            return;
+        }
+    }
+    
     if (!movement) return;
     
     // Hide movements list, show detail
@@ -277,8 +325,10 @@ function getMovementActions(movement) {
     if (!user) return '<p class="text-muted mb-0">Please log in</p>';
     
     const userLocation = getUserLocation();
-    const isReceiver = userLocation && userLocation.id === movement.toLocationId;
-    const isSender = userLocation && userLocation.id === movement.fromLocationId;
+        const toLocationId = movement.to_location_id || movement.toLocationId;
+        const fromLocationId = movement.from_location_id || movement.fromLocationId;
+        const isReceiver = userLocation && userLocation.id === toLocationId;
+        const isSender = userLocation && userLocation.id === fromLocationId;
     
     if (movement.status === 'pending') {
         // Receiver can approve, sender can cancel
@@ -355,161 +405,84 @@ function backToMovements() {
     window.location.hash = 'stock-movements';
 }
 
-// Approve movement (receiver approves - deducts from sender)
-function approveMovement(movementId) {
+// Approve movement (receiver approves - deducts from sender) - Now uses API
+async function approveMovement(movementId) {
     if (!confirm('Are you sure you want to approve this movement? This will deduct stock from the sender.')) return;
     
-    const movement = movements.find(m => m.id === movementId);
-    if (!movement) {
-        alert('Movement not found');
-        return;
-    }
-    
-    // Check if movement is already approved or received
-    if (movement.status === 'approved' || movement.status === 'received') {
-        alert('This movement has already been processed.');
-        return;
-    }
-    
-    if (movement.status === 'cancelled') {
-        alert('This movement has been cancelled and cannot be approved.');
-        return;
-    }
-    
-    // Check if user has permission to approve (must be receiver)
-    const user = Auth.getUser();
-    const toLocation = locations.find(l => l.id === movement.toLocationId);
-    
-    // Validate stock availability
-    const stockValidation = validateMovementStock(movement.fromLocationId, movement.items);
-    if (!stockValidation.valid) {
-        const errorMsg = stockValidation.errors.map(e => 
-            `${e.product}: Required ${e.required}, Available ${e.available}`
-        ).join('\n');
-        alert(`Insufficient stock:\n${errorMsg}`);
-        return;
-    }
-    
-    // Update status
-    movement.status = 'approved';
-    movement.approvedAt = new Date().toISOString();
-    movement.approvedBy = user?.name || user?.email || 'System';
-    
-    // Deduct inventory from sender
-    movement.items.forEach(item => {
-        updateInventory(
-            movement.fromLocationId,
-            item.productId,
-            -item.quantity,
-            item.unitPrice
+    try {
+        await API.updateMovementStatus(
+            movementId,
+            'approved',
+            'Approved',
+            'Movement approved. Stock will be deducted from sender.'
         );
-    });
-    
-    // Add activity log
-    if (!movement.activities) movement.activities = [];
-    movement.activities.push({
-        action: 'Approved',
-        description: `Movement approved. Stock deducted from ${getLocationName(movement.fromLocationId)}`,
-        timestamp: new Date().toISOString(),
-        user: user?.name || 'System'
-    });
-    
-    saveMovements();
-    
-    // Update dashboard stats
-    if (typeof updateDashboardStats === 'function') {
-        updateDashboardStats();
+        
+        // Reload movements and inventory from API
+        if (typeof loadMovements === 'function') {
+            await loadMovements();
+        }
+        if (typeof loadInventory === 'function') {
+            await loadInventory();
+        }
+        
+        // Refresh movement detail view if open
+        if (typeof showMovementDetail === 'function') {
+            await showMovementDetail();
+        }
+        
+        // Update dashboard stats
+        if (typeof updateDashboardStats === 'function') {
+            updateDashboardStats();
+        }
+        if (typeof updateMovementsStats === 'function') {
+            updateMovementsStats();
+        }
+        
+        showNotification('Movement approved successfully! Stock deducted from sender.', 'success');
+    } catch (error) {
+        console.error('Error approving movement:', error);
+        alert('Error approving movement: ' + error.message);
     }
-    if (typeof updateMovementsStats === 'function') {
-        updateMovementsStats();
-    }
-    
-    // Reload movements table
-    if (typeof loadMovements === 'function') {
-        loadMovements();
-    }
-    
-    // Reload inventory if on inventory page
-    if (typeof loadInventory === 'function') {
-        loadInventory();
-    }
-    
-    // Refresh movement detail view if open
-    showMovementDetail();
-    showNotification('Movement approved successfully! Stock deducted from sender.', 'success');
 }
 
-// Receive movement (receiver confirms receipt - adds to receiver inventory)
-function receiveMovement(movementId) {
+// Receive movement (receiver confirms receipt - adds to receiver inventory) - Now uses API
+async function receiveMovement(movementId) {
     if (!confirm('Are you sure you want to confirm receipt? This will add stock to your inventory.')) return;
     
-    const movement = movements.find(m => m.id === movementId);
-    if (!movement) {
-        alert('Movement not found');
-        return;
-    }
-    
-    // Movement must be approved first
-    if (movement.status !== 'approved') {
-        alert('Movement must be approved before it can be received.');
-        return;
-    }
-    
-    // Check if already received
-    if (movement.status === 'received') {
-        alert('This movement has already been received.');
-        return;
-    }
-    
-    const user = Auth.getUser();
-    
-    // Update status
-    movement.status = 'received';
-    movement.receivedAt = new Date().toISOString();
-    movement.receivedBy = user?.name || user?.email || 'System';
-    
-    // Add inventory to receiver
-    movement.items.forEach(item => {
-        updateInventory(
-            movement.toLocationId,
-            item.productId,
-            item.quantity,
-            item.unitPrice
+    try {
+        await API.updateMovementStatus(
+            movementId,
+            'received',
+            'Received',
+            'Movement received. Stock added to receiver inventory.'
         );
-    });
-    
-    // Add activity log
-    if (!movement.activities) movement.activities = [];
-    movement.activities.push({
-        action: 'Received',
-        description: `Movement received. Stock added to ${getLocationName(movement.toLocationId)}`,
-        timestamp: new Date().toISOString(),
-        user: user?.name || 'System'
-    });
-    
-    saveMovements();
-    
-    // Update dashboard stats
-    if (typeof updateDashboardStats === 'function') {
-        updateDashboardStats();
+        
+        // Reload movements and inventory from API
+        if (typeof loadMovements === 'function') {
+            await loadMovements();
+        }
+        if (typeof loadInventory === 'function') {
+            await loadInventory();
+        }
+        
+        // Refresh movement detail view if open
+        if (typeof showMovementDetail === 'function') {
+            await showMovementDetail();
+        }
+        
+        // Update dashboard stats
+        if (typeof updateDashboardStats === 'function') {
+            updateDashboardStats();
+        }
+        if (typeof updateMovementsStats === 'function') {
+            updateMovementsStats();
+        }
+        
+        showNotification('Movement received successfully! Stock added to your inventory.', 'success');
+    } catch (error) {
+        console.error('Error receiving movement:', error);
+        alert('Error receiving movement: ' + error.message);
     }
-    if (typeof updateMovementsStats === 'function') {
-        updateMovementsStats();
-    }
-    
-    // Reload movements table
-    if (typeof loadMovements === 'function') {
-        loadMovements();
-    }
-    
-    // Reload inventory if on inventory page
-    if (typeof loadInventory === 'function') {
-        loadInventory();
-    }
-    
-    // Refresh movement detail view if open
-    showMovementDetail();
-    showNotification('Movement received successfully! Stock added to your inventory.', 'success');
 }
 
 // Legacy function - kept for compatibility, now calls approveMovement
@@ -517,50 +490,40 @@ function dispatchMovement(movementId) {
     approveMovement(movementId);
 }
 
-function cancelMovement(movementId) {
+async function cancelMovement(movementId) {
     if (!confirm('Are you sure you want to cancel this movement?')) return;
     
-    const movement = movements.find(m => m.id === movementId);
-    if (!movement) {
-        alert('Movement not found');
-        return;
+    try {
+        await API.updateMovementStatus(
+            movementId,
+            'cancelled',
+            'Cancelled',
+            'Movement has been cancelled'
+        );
+        
+        // Reload movements from API
+        if (typeof loadMovements === 'function') {
+            await loadMovements();
+        }
+        
+        // Refresh movement detail view if open
+        if (typeof showMovementDetail === 'function') {
+            await showMovementDetail();
+        }
+        
+        // Update dashboard stats
+        if (typeof updateDashboardStats === 'function') {
+            updateDashboardStats();
+        }
+        if (typeof updateMovementsStats === 'function') {
+            updateMovementsStats();
+        }
+        
+        showNotification('Movement cancelled successfully!', 'success');
+    } catch (error) {
+        console.error('Error cancelling movement:', error);
+        alert('Error cancelling movement: ' + error.message);
     }
-    
-    // Can only cancel pending movements
-    if (movement.status !== 'pending') {
-        alert('Only pending movements can be cancelled.');
-        return;
-    }
-    
-    movement.status = 'cancelled';
-    movement.cancelledAt = new Date().toISOString();
-    
-    if (!movement.activities) movement.activities = [];
-    movement.activities.push({
-        action: 'Cancelled',
-        description: 'Movement has been cancelled',
-        timestamp: new Date().toISOString(),
-        user: Auth.getUser()?.name || 'System'
-    });
-    
-    saveMovements();
-    
-    // Update dashboard stats
-    if (typeof updateDashboardStats === 'function') {
-        updateDashboardStats();
-    }
-    if (typeof updateMovementsStats === 'function') {
-        updateMovementsStats();
-    }
-    
-    // Reload movements table
-    if (typeof loadMovements === 'function') {
-        loadMovements();
-    }
-    
-    // Refresh movement detail view if open
-    showMovementDetail();
-    showNotification('Movement cancelled successfully!', 'success');
 }
 
 function updateMovementsStats() {
@@ -579,8 +542,10 @@ function updateMovementsStats() {
     if (pendingEl) pendingEl.textContent = pendingMovements;
 }
 
+// Movements are now saved via API, no need for localStorage
 function saveMovements() {
-    localStorage.setItem('movements', JSON.stringify(movements));
+    // This function is kept for compatibility but does nothing
+    // Movements are saved through API calls
 }
 
 function filterMovements() {

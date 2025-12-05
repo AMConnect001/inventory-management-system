@@ -194,9 +194,10 @@ let movementWizard = {
                         const availableQty = fromLocationId && typeof getInventoryQuantity === 'function' 
                             ? getInventoryQuantity(fromLocationId, product.id) 
                             : 'N/A';
+                        const unitPrice = product.unit_price || product.unitPrice || 0;
                         return `
-                            <option value="${product.id}" data-price="${product.unitPrice || 0}">
-                                ${product.name} - $${product.unitPrice?.toFixed(2) || '0.00'} 
+                            <option value="${product.id}" data-price="${unitPrice}">
+                                ${product.name} - $${unitPrice.toFixed(2)} 
                                 ${fromLocationId ? `(Available: ${availableQty})` : ''}
                             </option>
                         `;
@@ -536,7 +537,7 @@ let movementWizard = {
             this.data.items.push({
                 productId: productId,
                 quantity: quantity,
-                unitPrice: product.unitPrice || 0
+                unitPrice: product.unit_price || product.unitPrice || 0
             });
         }
         
@@ -591,55 +592,53 @@ let movementWizard = {
         }
     },
     
-    confirmMovement() {
+    async confirmMovement() {
         if (!this.validateStep2()) return;
         
         const notes = document.getElementById('wizardNotes')?.value || '';
-        const user = Auth.getUser();
         
-        const newMovement = {
-            id: movements.length > 0 ? Math.max(...movements.map(m => m.id)) + 1 : 1,
-            fromLocationId: this.data.fromLocationId,
-            toLocationId: this.data.toLocationId,
-            items: this.data.items,
-            status: 'pending',
-            notes: notes,
-            createdAt: new Date().toISOString(),
-            createdBy: user?.name || user?.email || 'System',
-            activities: [{
-                action: 'Created',
-                description: 'Movement created',
-                timestamp: new Date().toISOString(),
-                user: user?.name || 'System'
-            }]
-        };
-        
-        movements.push(newMovement);
-        saveMovements();
-        
-        this.close();
-        showNotification('Stock transfer created successfully!', 'success');
-        
-        // Update dashboard stats
-        if (typeof updateDashboardStats === 'function') {
-            updateDashboardStats();
-        }
-        if (typeof updateMovementsStats === 'function') {
-            updateMovementsStats();
-        }
-        
-        // Reload movements if on movements page
-        if (typeof loadMovements === 'function') {
-            loadMovements();
-        }
-        
-        // Navigate to movements section if not already there
-        const currentSection = getCurrentSection ? getCurrentSection() : '';
-        if (currentSection !== 'stock-movements' && currentSection !== 'new-transfer') {
-            // Optionally navigate to movements section
-            if (typeof showSection === 'function') {
-                showSection('stock-movements');
+        try {
+            // Create movement via API
+            const movementData = {
+                from_location_id: this.data.fromLocationId,
+                to_location_id: this.data.toLocationId,
+                items: this.data.items.map(item => ({
+                    product_id: item.productId,
+                    quantity: item.quantity,
+                    unit_price: item.unitPrice
+                })),
+                notes: notes
+            };
+            
+            await API.createMovement(movementData);
+            
+            this.close();
+            showNotification('Stock transfer created successfully!', 'success');
+            
+            // Reload movements from API
+            if (typeof loadMovements === 'function') {
+                await loadMovements();
             }
+            
+            // Update dashboard stats
+            if (typeof updateDashboardStats === 'function') {
+                updateDashboardStats();
+            }
+            if (typeof updateMovementsStats === 'function') {
+                updateMovementsStats();
+            }
+            
+            // Navigate to movements section if not already there
+            const currentSection = getCurrentSection ? getCurrentSection() : '';
+            if (currentSection !== 'stock-movements' && currentSection !== 'new-transfer') {
+                // Optionally navigate to movements section
+                if (typeof showSection === 'function') {
+                    showSection('stock-movements');
+                }
+            }
+        } catch (error) {
+            console.error('Error creating movement:', error);
+            alert('Error creating movement: ' + error.message);
         }
     },
     
