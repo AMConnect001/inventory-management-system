@@ -36,7 +36,14 @@ next-env.d.ts
 # cursor
 .cursor/
 
-# batch files with secrets
+# batch files (keep START_SERVER.bat for convenience)
 push-to-github.bat
-*.bat
+# START_SERVER.bat
+
+# test files
+test-connection.js
+test-server.js
+start-server.js
+verify-setup.js
+server-output.txt
 

@@ -1,7 +1,20 @@
 // API Utility Functions - Centralized API calls for the Inventory Management System
 
 const API = {
-    baseURL: '/api',
+    // Get base URL - detects if running on Next.js server or static files
+    getBaseURL() {
+        // If running on localhost (Next.js dev server), use relative URL
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return window.location.origin + '/api';
+        }
+        // For production or if API_URL is set
+        const apiUrl = window.API_BASE_URL || 'http://localhost:3000/api';
+        return apiUrl;
+    },
+    
+    get baseURL() {
+        return this.getBaseURL();
+    },
     
     /**
      * Make an authenticated API request
@@ -18,10 +31,16 @@ const API = {
         };
         
         try {
-            const response = await fetch(`${this.baseURL}${endpoint}`, {
+            const baseURL = this.getBaseURL();
+            const response = await fetch(`${baseURL}${endpoint}`, {
                 ...options,
                 headers
             });
+            
+            // Handle network errors
+            if (!response.ok && response.status === 0) {
+                throw new Error('Cannot connect to server. Please make sure the Next.js server is running (npm run dev)');
+            }
             
             // Handle 401 Unauthorized - token expired
             if (response.status === 401) {
@@ -30,7 +49,7 @@ const API = {
                 if (refreshed.success && refreshed.token) {
                     // Retry request with new token
                     headers['Authorization'] = `Bearer ${refreshed.token}`;
-                    const retryResponse = await fetch(`${this.baseURL}${endpoint}`, {
+                    const retryResponse = await fetch(`${baseURL}${endpoint}`, {
                         ...options,
                         headers
                     });
@@ -56,6 +75,10 @@ const API = {
             return data;
         } catch (error) {
             console.error('API Error:', error);
+            // Provide helpful error message for network issues
+            if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || error.name === 'TypeError') {
+                throw new Error('Cannot connect to server. Please make sure the Next.js server is running. Run "npm run dev" in the terminal.');
+            }
             throw error;
         }
     },

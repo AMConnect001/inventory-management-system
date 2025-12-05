@@ -82,6 +82,12 @@ Open `http://localhost:3000` and login with:
 
 ## 🔧 Troubleshooting
 
+**"Failed to fetch" or "Cannot connect to server" error when logging in?**
+- ⚠️ **IMPORTANT**: You MUST run the Next.js server before accessing the application
+- Make sure you've run `npm run dev` in the terminal
+- Access the app at `http://localhost:3000` (NOT by opening HTML files directly)
+- If the server isn't running, the login will fail with a connection error
+
 **Database connection error?**
 - Check MySQL is running: `mysql -u root -p`
 - Verify `.env.local` has correct credentials

@@ -41,14 +41,31 @@ const Auth = {
         localStorage.removeItem(this.USER_KEY);
     },
     
+    // Get API base URL - detects if running on Next.js server or static files
+    getApiBaseURL() {
+        // If running on localhost (Next.js dev server), use relative URL
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return window.location.origin + '/api';
+        }
+        // For production or if API_URL is set
+        const apiUrl = window.API_BASE_URL || 'http://localhost:3000/api';
+        return apiUrl;
+    },
+    
     // Login function - Now uses real API
     async login(email, password) {
         try {
-            const response = await fetch('/api/auth/login', {
+            const apiUrl = this.getApiBaseURL();
+            const response = await fetch(`${apiUrl}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
             });
+            
+            // Handle network errors
+            if (!response.ok && response.status === 0) {
+                throw new Error('Cannot connect to server. Please make sure the Next.js server is running (npm run dev)');
+            }
             
             const data = await response.json();
             
@@ -65,9 +82,14 @@ const Auth = {
                 token: data.token
             };
         } catch (error) {
+            // Provide helpful error message for network issues
+            let errorMessage = error.message || 'Login failed';
+            if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                errorMessage = 'Cannot connect to server. Please make sure the Next.js server is running. Run "npm run dev" in the terminal.';
+            }
             return {
                 success: false,
-                error: error.message || 'Login failed'
+                error: errorMessage
             };
         }
     },
@@ -87,7 +109,8 @@ const Auth = {
             }
             
             // Use /api/auth/me to verify token is still valid
-            const response = await fetch('/api/auth/me', {
+            const apiUrl = this.getApiBaseURL();
+            const response = await fetch(`${apiUrl}/auth/me`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             
