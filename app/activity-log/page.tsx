@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
+import { API } from '@/lib/api';
 
 interface ActivityLog {
   id: number;
@@ -22,12 +23,12 @@ export default function ActivityLogPage() {
   const loadActivityLogs = async () => {
     try {
       const token = localStorage.getItem('inventory_auth_token');
-      if (!token) return;
+      if (!token) {
+        window.location.href = '/login';
+        return;
+      }
 
-      const response = await fetch('/api/activity-logs?limit=100', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
+      const data = await API.getActivityLogs(100);
       setLogs(data.logs || []);
     } catch (error) {
       console.error('Error loading activity logs:', error);

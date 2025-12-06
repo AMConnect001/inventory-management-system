@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
+import { API } from '@/lib/api';
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({
@@ -21,31 +22,36 @@ export default function DashboardPage() {
   const loadDashboardData = async () => {
     try {
       const token = localStorage.getItem('inventory_auth_token');
-      if (!token) return;
+      if (!token) {
+        window.location.href = '/login';
+        return;
+      }
 
-      // Load products
-      const productsRes = await fetch('/api/products', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const productsData = await productsRes.json();
+      // Try to use dashboard stats endpoint first
+      try {
+        const statsData = await API.getDashboardStats();
+        if (statsData.stats) {
+          setStats({
+            totalProducts: statsData.stats.totalProducts || 0,
+            totalInventory: statsData.stats.totalInventory || 0,
+            pendingMovements: statsData.stats.pendingMovements || 0,
+            activityLogs: statsData.stats.activityLogs || 0,
+            totalValue: statsData.stats.totalValue || 0,
+            avgValue: statsData.stats.avgValue || 0,
+          });
+          return;
+        }
+      } catch (error) {
+        // Fallback to manual calculation
+      }
 
-      // Load inventory
-      const inventoryRes = await fetch('/api/inventory', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const inventoryData = await inventoryRes.json();
-
-      // Load movements
-      const movementsRes = await fetch('/api/movements?status=pending', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const movementsData = await movementsRes.json();
-
-      // Load activity logs
-      const logsRes = await fetch('/api/activity-logs?limit=100', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const logsData = await logsRes.json();
+      // Fallback: Load individual data and calculate
+      const [productsData, inventoryData, movementsData, logsData] = await Promise.all([
+        API.getProducts(),
+        API.getInventory(),
+        API.getMovements({ status: 'pending' }),
+        API.getActivityLogs(100),
+      ]);
 
       // Calculate stats
       const totalInventory = inventoryData.inventory.reduce(

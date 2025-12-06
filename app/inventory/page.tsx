@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
+import { API } from '@/lib/api';
 
 interface InventoryItem {
   id: number;
@@ -26,12 +27,12 @@ export default function InventoryPage() {
   const loadInventory = async () => {
     try {
       const token = localStorage.getItem('inventory_auth_token');
-      if (!token) return;
+      if (!token) {
+        window.location.href = '/login';
+        return;
+      }
 
-      const response = await fetch('/api/inventory', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
+      const data = await API.getInventory();
       setInventory(data.inventory || []);
     } catch (error) {
       console.error('Error loading inventory:', error);

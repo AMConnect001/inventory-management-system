@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
+import { API } from '@/lib/api';
 
 interface Product {
   id: number;
@@ -20,17 +21,17 @@ export default function ProductsPage() {
 
   useEffect(() => {
     loadProducts();
-  }, []);
+  }, [statusFilter]);
 
   const loadProducts = async () => {
     try {
       const token = localStorage.getItem('inventory_auth_token');
-      if (!token) return;
+      if (!token) {
+        window.location.href = '/login';
+        return;
+      }
 
-      const response = await fetch('/api/products', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
+      const data = await API.getProducts({ status: statusFilter || undefined });
       setProducts(data.products || []);
     } catch (error) {
       console.error('Error loading products:', error);

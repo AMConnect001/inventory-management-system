@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { API } from '@/lib/api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -17,30 +18,17 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || 'Login failed');
-        return;
-      }
+      const data = await API.login(email, password);
 
       // Store auth data
       localStorage.setItem('inventory_auth_token', data.token);
-      localStorage.setItem('inventory_refresh_token', data.refreshToken);
+      localStorage.setItem('inventory_refresh_token', data.refreshToken || '');
       localStorage.setItem('inventory_user', JSON.stringify(data.user));
 
       // Redirect based on role
       router.push('/dashboard');
     } catch (err: any) {
-      setError('Network error. Please try again.');
+      setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }

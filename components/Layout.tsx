@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { API } from '@/lib/api';
 
 interface User {
   id: number;
@@ -30,23 +31,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const response = await fetch('/api/auth/me', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        localStorage.removeItem('inventory_auth_token');
-        localStorage.removeItem('inventory_refresh_token');
-        localStorage.removeItem('inventory_user');
-        router.push('/login');
-        return;
-      }
-
-      const data = await response.json();
+      const data = await API.getCurrentUser();
       setUser(data.user);
     } catch (error) {
+      localStorage.removeItem('inventory_auth_token');
+      localStorage.removeItem('inventory_refresh_token');
+      localStorage.removeItem('inventory_user');
       router.push('/login');
     } finally {
       setLoading(false);

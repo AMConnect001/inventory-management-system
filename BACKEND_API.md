@@ -4,7 +4,7 @@ Complete API reference for the Inventory Management System backend.
 
 ## Base URL
 ```
-http://localhost:3000/api
+http://localhost:8000/api
 ```
 
 All endpoints require authentication via Bearer token in the Authorization header:

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
+import { API } from '@/lib/api';
 
 interface Movement {
   id: number;
@@ -27,15 +28,12 @@ export default function MovementsPage() {
   const loadMovements = async () => {
     try {
       const token = localStorage.getItem('inventory_auth_token');
-      if (!token) return;
+      if (!token) {
+        window.location.href = '/login';
+        return;
+      }
 
-      const url = statusFilter
-        ? `/api/movements?status=${statusFilter}`
-        : '/api/movements';
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
+      const data = await API.getMovements({ status: statusFilter || undefined });
       setMovements(data.movements || []);
     } catch (error) {
       console.error('Error loading movements:', error);
