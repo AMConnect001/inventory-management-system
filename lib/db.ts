@@ -4,7 +4,7 @@ let pool: mysql.Pool | null = null;
 
 export function getPool(): mysql.Pool {
   if (!pool) {
-    pool = mysql.createPool({
+    const config: mysql.PoolOptions = {
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '3306'),
       user: process.env.DB_USER || 'root',
@@ -13,7 +13,16 @@ export function getPool(): mysql.Pool {
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
-    });
+    };
+
+    // Add SSL configuration for production/cloud databases
+    if (process.env.DB_SSL === 'true' || process.env.VERCEL) {
+      config.ssl = {
+        rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',
+      };
+    }
+
+    pool = mysql.createPool(config);
   }
   return pool;
 }

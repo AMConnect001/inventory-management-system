@@ -1,14 +1,10 @@
 // API Utility Functions - Centralized API calls for the Inventory Management System
 
 const API = {
-    // Get base URL - detects if running on Next.js server or static files
+    // Get base URL - Laravel backend API
     getBaseURL() {
-        // If running on localhost (Next.js dev server), use relative URL
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            return window.location.origin + '/api';
-        }
-        // For production or if API_URL is set
-        const apiUrl = window.API_BASE_URL || 'http://localhost:3000/api';
+        // Use Laravel backend API URL
+        const apiUrl = window.API_BASE_URL || 'http://localhost:8000/api';
         return apiUrl;
     },
     
@@ -39,7 +35,7 @@ const API = {
             
             // Handle network errors
             if (!response.ok && response.status === 0) {
-                throw new Error('Cannot connect to server. Please make sure the Next.js server is running (npm run dev)');
+                throw new Error('Cannot connect to server. Please make sure the Laravel backend is running (php artisan serve)');
             }
             
             // Handle 401 Unauthorized - token expired
@@ -77,7 +73,7 @@ const API = {
             console.error('API Error:', error);
             // Provide helpful error message for network issues
             if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || error.name === 'TypeError') {
-                throw new Error('Cannot connect to server. Please make sure the Next.js server is running. Run "npm run dev" in the terminal.');
+                throw new Error('Cannot connect to server. Please make sure the Laravel backend is running. Run "php artisan serve" in the backend directory.');
             }
             throw error;
         }

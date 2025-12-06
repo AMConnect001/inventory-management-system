@@ -41,14 +41,10 @@ const Auth = {
         localStorage.removeItem(this.USER_KEY);
     },
     
-    // Get API base URL - detects if running on Next.js server or static files
+    // Get API base URL - Laravel backend API
     getApiBaseURL() {
-        // If running on localhost (Next.js dev server), use relative URL
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            return window.location.origin + '/api';
-        }
-        // For production or if API_URL is set
-        const apiUrl = window.API_BASE_URL || 'http://localhost:3000/api';
+        // Use Laravel backend API URL
+        const apiUrl = window.API_BASE_URL || 'http://localhost:8000/api';
         return apiUrl;
     },
     
@@ -64,7 +60,7 @@ const Auth = {
             
             // Handle network errors
             if (!response.ok && response.status === 0) {
-                throw new Error('Cannot connect to server. Please make sure the Next.js server is running (npm run dev)');
+                throw new Error('Cannot connect to server. Please make sure the Laravel backend is running (php artisan serve)');
             }
             
             const data = await response.json();
@@ -73,8 +69,8 @@ const Auth = {
                 throw new Error(data.error || 'Login failed');
             }
             
-            // Store authentication data
-            this.setAuth(data.token, data.refreshToken, data.user);
+            // Store authentication data (Laravel Sanctum doesn't use refresh tokens)
+            this.setAuth(data.token, data.token, data.user);
             
             return {
                 success: true,
@@ -85,7 +81,7 @@ const Auth = {
             // Provide helpful error message for network issues
             let errorMessage = error.message || 'Login failed';
             if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-                errorMessage = 'Cannot connect to server. Please make sure the Next.js server is running. Run "npm run dev" in the terminal.';
+                errorMessage = 'Cannot connect to server. Please make sure the Laravel backend is running. Run "php artisan serve" in the backend directory.';
             }
             return {
                 success: false,
